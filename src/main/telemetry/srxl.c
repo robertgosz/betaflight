@@ -73,7 +73,7 @@
 #define SRXL_FRAMETYPE_TELE_FP_MAH  0x34
 #define TELE_DEVICE_VTX             0x0D   // Video Transmitter Status
 #define SRXL_FRAMETYPE_SID          0x00
-#define	SRXL_FRAMETYPE_GPS_LOC		0x16   // GPS Location Data (Eagle Tree)
+#define SRXL_FRAMETYPE_GPS_LOC      0x16   // GPS Location Data (Eagle Tree)
 #define SRXL_FRAMETYPE_GPS_STAT     0x17   
 
 static bool srxlTelemetryEnabled;
@@ -184,23 +184,23 @@ uint32_t dec2bcd_r(uint16_t dec)
 /*
 typedef struct
 {
-	UINT8		identifier;	 // Source device = 0x16
-	UINT8		sID;		 // Secondary ID
-	UINT16		altitudeLow; // BCD, meters, format 3.1 (Low order of altitude)
-	UINT32		latitude;	 // BCD, format 4.4, Degrees * 100 + minutes, less than 100 degrees
-	UINT32		longitude;	 // BCD, format 4.4 , Degrees * 100 + minutes, flag indicates > 99 degrees
-	UINT16		course;		 // BCD, 3.1
-	UINT8		HDOP;		 // BCD, format 1.1
-	UINT8		GPSflags;	 // see definitions below
+    UINT8    identifier;	// Source device = 0x16
+    UINT8    sID;			// Secondary ID
+    UINT16   altitudeLow;	// BCD, meters, format 3.1 (Low order of altitude)
+    UINT32   latitude;		// BCD, format 4.4, Degrees * 100 + minutes, less than 100 degrees
+    UINT32   longitude;		// BCD, format 4.4 , Degrees * 100 + minutes, flag indicates > 99 degrees
+    UINT16   course;		// BCD, 3.1
+    UINT8    HDOP;			// BCD, format 1.1
+    UINT8    GPSflags;		// see definitions below
 } STRU_TELE_GPS_LOC;
 
 // GPS flags definitions:
-#define	GPS_INFO_FLAGS_IS_NORTH_BIT					(0)
-#define	GPS_INFO_FLAGS_IS_EAST_BIT					(1)
-#define	GPS_INFO_FLAGS_LONGITUDE_GREATER_99_BIT		(2)
-#define	GPS_INFO_FLAGS_GPS_FIX_VALID_BIT			(3)
-#define	GPS_INFO_FLAGS_GPS_DATA_RECEIVED_BIT		(4)
-#define	GPS_INFO_FLAGS_3D_FIX_BIT					(5)
+#define GPS_INFO_FLAGS_IS_NORTH_BIT					(0)
+#define GPS_INFO_FLAGS_IS_EAST_BIT					(1)
+#define GPS_INFO_FLAGS_LONGITUDE_GREATER_99_BIT		(2)
+#define GPS_INFO_FLAGS_GPS_FIX_VALID_BIT			(3)
+#define GPS_INFO_FLAGS_GPS_DATA_RECEIVED_BIT		(4)
+#define GPS_INFO_FLAGS_3D_FIX_BIT					(5)
 #define GPS_INFO_FLAGS_NEGATIVE_ALT_BIT				(7)
 */
 
@@ -208,7 +208,7 @@ bool srxlFrameGpsLoc(sbuf_t *dst, timeUs_t currentTimeUs)
 {
     gpsCoordinateDDDMMmmmm_t coordinate;
     
-	uint32_t latitudeBcd, longitudeBcd;
+    uint32_t latitudeBcd, longitudeBcd;
     uint8_t isNorth, isEast;
     uint8_t gpsFlags = 0x00;
     
@@ -221,7 +221,7 @@ bool srxlFrameGpsLoc(sbuf_t *dst, timeUs_t currentTimeUs)
     
     // longitude
     if((gpsSol.llh.lon / GPS_DEGREES_DIVIDER) > 99) gpsFlags = gpsFlags | 0x04;  
-	GPStoDDDMM_MMMM(gpsSol.llh.lon, &coordinate);
+    GPStoDDDMM_MMMM(gpsSol.llh.lon, &coordinate);
     isEast = gpsSol.llh.lon < 0 ? 0 : 1;
     longitudeBcd = (dec2bcd_r(coordinate.dddmm) << 16) | dec2bcd_r(coordinate.mmmm);
     
@@ -229,11 +229,11 @@ bool srxlFrameGpsLoc(sbuf_t *dst, timeUs_t currentTimeUs)
     if(isNorth) gpsFlags = gpsFlags | 0x01;
     if(isEast)  gpsFlags = gpsFlags | 0x02;
     if(STATE(GPS_FIX)) gpsFlags = gpsFlags | 0x28;
-	
-	// data received bit
-	gpsFlags = gpsFlags | 0x10; 
-	
-	// SRXL frame
+    
+    // data received bit
+    gpsFlags = gpsFlags | 0x10; 
+    
+    // SRXL frame
     sbufWriteU8(dst, SRXL_FRAMETYPE_GPS_LOC);
     sbufWriteU8(dst, SRXL_FRAMETYPE_SID);
     sbufWriteU16(dst, 0x9990);                    
@@ -479,15 +479,15 @@ static void convertVtxTmData(spektrumVtx_t * vtx)
 /*
 typedef struct
 {
-    UINT8		identifier;
-    UINT8		sID;	  // Secondary ID
-    UINT8		band;	  // VTX Band (0 = Fatshark, 1 = Raceband, 2 = E, 3 = B, 4 = A, 5-7 = Reserved)
-    UINT8		channel;  // VTX Channel (0-7)
-    UINT8		pit;	  // Pit/Race mode (0 = Race, 1 = Pit). Race = (normal operating) mode. Pit = (reduced power) mode. When PIT is set, it overrides all other power settings
-    UINT8		power;	  // VTX Power (0 = Off, 1 = 1mw to 14mW, 2 = 15mW to 25mW, 3 = 26mW to 99mW, 4 = 100mW to 299mW, 5 = 300mW to 600mW, 6 = 601mW+, 7 = manual control)
-    UINT16		powerDec; // VTX Power as a decimal 1mw/unit
-    UINT8		region;	  // Region (0 = USA, 1 = EU, 0xFF = N/A)
-    UINT8		rfu[7];	  // reserved
+    UINT8        identifier;
+    UINT8        sID;		// Secondary ID
+    UINT8        band;		// VTX Band (0 = Fatshark, 1 = Raceband, 2 = E, 3 = B, 4 = A, 5-7 = Reserved)
+    UINT8        channel;	// VTX Channel (0-7)
+    UINT8        pit;		// Pit/Race mode (0 = Race, 1 = Pit). Race = (normal operating) mode. Pit = (reduced power) mode. When PIT is set, it overrides all other power settings
+    UINT8        power;		// VTX Power (0 = Off, 1 = 1mw to 14mW, 2 = 15mW to 25mW, 3 = 26mW to 99mW, 4 = 100mW to 299mW, 5 = 300mW to 600mW, 6 = 601mW+, 7 = manual control)
+    UINT16        powerDec;	// VTX Power as a decimal 1mw/unit
+    UINT8        region;	// Region (0 = USA, 1 = EU, 0xFF = N/A)
+    UINT8        rfu[7];	// reserved
 } STRU_TELE_VTX;
 */
 
