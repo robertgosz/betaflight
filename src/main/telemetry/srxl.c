@@ -184,24 +184,24 @@ uint32_t dec2bcd_r(uint16_t dec)
 /*
 typedef struct
 {
-    UINT8    identifier;	// Source device = 0x16
-    UINT8    sID;			// Secondary ID
-    UINT16   altitudeLow;	// BCD, meters, format 3.1 (Low order of altitude)
-    UINT32   latitude;		// BCD, format 4.4, Degrees * 100 + minutes, less than 100 degrees
-    UINT32   longitude;		// BCD, format 4.4 , Degrees * 100 + minutes, flag indicates > 99 degrees
-    UINT16   course;		// BCD, 3.1
-    UINT8    HDOP;			// BCD, format 1.1
-    UINT8    GPSflags;		// see definitions below
+    UINT8    identifier;    // Source device = 0x16
+    UINT8    sID;           // Secondary ID
+    UINT16   altitudeLow;   // BCD, meters, format 3.1 (Low order of altitude)
+    UINT32   latitude;      // BCD, format 4.4, Degrees * 100 + minutes, less than 100 degrees
+    UINT32   longitude;     // BCD, format 4.4 , Degrees * 100 + minutes, flag indicates > 99 degrees
+    UINT16   course;        // BCD, 3.1
+    UINT8    HDOP;          // BCD, format 1.1
+    UINT8    GPSflags;      // see definitions below
 } STRU_TELE_GPS_LOC;
 
 // GPS flags definitions:
-#define GPS_INFO_FLAGS_IS_NORTH_BIT					(0)
-#define GPS_INFO_FLAGS_IS_EAST_BIT					(1)
-#define GPS_INFO_FLAGS_LONGITUDE_GREATER_99_BIT		(2)
-#define GPS_INFO_FLAGS_GPS_FIX_VALID_BIT			(3)
-#define GPS_INFO_FLAGS_GPS_DATA_RECEIVED_BIT		(4)
-#define GPS_INFO_FLAGS_3D_FIX_BIT					(5)
-#define GPS_INFO_FLAGS_NEGATIVE_ALT_BIT				(7)
+#define GPS_INFO_FLAGS_IS_NORTH_BIT                 (0)
+#define GPS_INFO_FLAGS_IS_EAST_BIT                  (1)
+#define GPS_INFO_FLAGS_LONGITUDE_GREATER_99_BIT     (2)
+#define GPS_INFO_FLAGS_GPS_FIX_VALID_BIT            (3)
+#define GPS_INFO_FLAGS_GPS_DATA_RECEIVED_BIT        (4)
+#define GPS_INFO_FLAGS_3D_FIX_BIT                   (5)
+#define GPS_INFO_FLAGS_NEGATIVE_ALT_BIT             (7)
 */
 
 bool srxlFrameGpsLoc(sbuf_t *dst, timeUs_t currentTimeUs)
