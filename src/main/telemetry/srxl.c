@@ -73,6 +73,8 @@
 #define SRXL_FRAMETYPE_TELE_FP_MAH  0x34
 #define TELE_DEVICE_VTX             0x0D   // Video Transmitter Status
 #define SRXL_FRAMETYPE_SID          0x00
+#define	SRXL_FRAMETYPE_GPS_LOC		0x16   // GPS Location Data (Eagle Tree)
+#define SRXL_FRAMETYPE_GPS_STAT     0x17   
 
 static bool srxlTelemetryEnabled;
 static uint8_t srxlFrame[SRXL_FRAME_SIZE_MAX];
@@ -157,6 +159,116 @@ bool srxlFrameRpm(sbuf_t *dst, timeUs_t currentTimeUs)
     sbufWriteU16BigEndian(dst, 0x7FFF);                     // temperature
 
     sbufFill(dst, 0xFF, STRU_TELE_RPM_EMPTY_FIELDS_COUNT);
+    return true;
+}
+
+#if defined(USE_GPS) 
+// From Frsky implementation
+static void GPStoDDDMM_MMMM(int32_t mwiigps, gpsCoordinateDDDMMmmmm_t *result)
+{
+    int32_t absgps, deg, min;
+    absgps = ABS(mwiigps);
+    deg    = absgps / GPS_DEGREES_DIVIDER;
+    absgps = (absgps - deg * GPS_DEGREES_DIVIDER) * 60;        // absgps = Minutes left * 10^7
+    min    = absgps / GPS_DEGREES_DIVIDER;                     // minutes left
+    result->dddmm = deg * 100 + min;
+    result->mmmm  = (absgps - min * GPS_DEGREES_DIVIDER) / 1000;
+}
+
+uint32_t dec2bcd_r(uint16_t dec)
+{
+    return (dec) ? ((dec2bcd_r( dec / 10 ) << 4) + (dec % 10)) : 0;
+}
+#endif
+
+/*
+typedef struct
+{
+	UINT8		identifier;	 // Source device = 0x16
+	UINT8		sID;		 // Secondary ID
+	UINT16		altitudeLow; // BCD, meters, format 3.1 (Low order of altitude)
+	UINT32		latitude;	 // BCD, format 4.4, Degrees * 100 + minutes, less than 100 degrees
+	UINT32		longitude;	 // BCD, format 4.4 , Degrees * 100 + minutes, flag indicates > 99 degrees
+	UINT16		course;		 // BCD, 3.1
+	UINT8		HDOP;		 // BCD, format 1.1
+	UINT8		GPSflags;	 // see definitions below
+} STRU_TELE_GPS_LOC;
+
+// GPS flags definitions:
+#define	GPS_INFO_FLAGS_IS_NORTH_BIT					(0)
+#define	GPS_INFO_FLAGS_IS_EAST_BIT					(1)
+#define	GPS_INFO_FLAGS_LONGITUDE_GREATER_99_BIT		(2)
+#define	GPS_INFO_FLAGS_GPS_FIX_VALID_BIT			(3)
+#define	GPS_INFO_FLAGS_GPS_DATA_RECEIVED_BIT		(4)
+#define	GPS_INFO_FLAGS_3D_FIX_BIT					(5)
+#define GPS_INFO_FLAGS_NEGATIVE_ALT_BIT				(7)
+*/
+
+bool srxlFrameGpsLoc(sbuf_t *dst, timeUs_t currentTimeUs)
+{
+    gpsCoordinateDDDMMmmmm_t coordinate;
+    
+	uint32_t latitudeBcd, longitudeBcd;
+    uint8_t isNorth, isEast;
+    uint8_t gpsFlags = 0x00;
+    
+    UNUSED(currentTimeUs);
+    
+    // lattitude
+    GPStoDDDMM_MMMM(gpsSol.llh.lat, &coordinate);
+    isNorth = gpsSol.llh.lat < 0 ? 0 : 1;
+    latitudeBcd = (dec2bcd_r(coordinate.dddmm) << 16) | dec2bcd_r(coordinate.mmmm);
+    
+    // longitude
+    if((gpsSol.llh.lon / GPS_DEGREES_DIVIDER) > 99) gpsFlags = gpsFlags | 0x04;  
+	GPStoDDDMM_MMMM(gpsSol.llh.lon, &coordinate);
+    isEast = gpsSol.llh.lon < 0 ? 0 : 1;
+    longitudeBcd = (dec2bcd_r(coordinate.dddmm) << 16) | dec2bcd_r(coordinate.mmmm);
+    
+    // flags
+    if(isNorth) gpsFlags = gpsFlags | 0x01;
+    if(isEast)  gpsFlags = gpsFlags | 0x02;
+    if(STATE(GPS_FIX)) gpsFlags = gpsFlags | 0x28;
+	
+	// data received bit
+	gpsFlags = gpsFlags | 0x10; 
+	
+	// SRXL frame
+    sbufWriteU8(dst, SRXL_FRAMETYPE_GPS_LOC);
+    sbufWriteU8(dst, SRXL_FRAMETYPE_SID);
+    sbufWriteU16(dst, 0x9990);                    
+    sbufWriteU32(dst, latitudeBcd);
+    sbufWriteU32(dst, longitudeBcd);
+    sbufWriteU16(dst, 0x0450);
+    sbufWriteU8(dst, 0xFF);
+    sbufWriteU8(dst, gpsFlags);
+    
+    return true;
+}
+
+/*
+typedef struct 
+{ 
+   UINT8   identifier;                      // Source device = 0x17 
+   UINT8   sID;                             // Secondary ID 
+   UINT16  speed;                           // BCD, knots, format 3.1 
+   UINT32  UTC;                             // BCD, format HH:MM:SS.S, format 6.1 
+   UINT8   numSats;                         // BCD, 0-99 
+   UINT8   altitudeHigh;                    // BCD, meters, format 2.0 (
+High bits alt) 
+} STRU_TELE_GPS_STAT; 
+*/
+
+bool srxlFrameGpsStat(sbuf_t *dst, timeUs_t currentTimeUs)
+{
+    UNUSED(currentTimeUs);
+
+    sbufWriteU8(dst, SRXL_FRAMETYPE_GPS_STAT);
+    sbufWriteU8(dst, SRXL_FRAMETYPE_SID);
+    sbufWriteU16(dst, 0xFFFF);                    
+    sbufWriteU32(dst, 0xFFFFFFFF);
+    sbufWriteU8(dst, 0x08);
+    sbufWriteU8(dst, 0x99);
     return true;
 }
 
@@ -426,6 +538,14 @@ static bool srxlFrameVTX(sbuf_t *dst, timeUs_t currentTimeUs)
 
 #define SRXL_FP_MAH_COUNT    1
 
+#if defined(USE_GPS)
+#define SRXL_GPS_LOC_COUNT  1
+#define SRXL_GPS_STAT_COUNT 1
+#else
+#define SRXL_GPS_LOC_COUNT  0
+#define SRXL_GPS_STAT_COUNT 0
+#endif
+
 #if defined (USE_SPEKTRUM_CMS_TELEMETRY) && defined (USE_CMS)
 #define SRXL_SCHEDULE_CMS_COUNT  1
 #else
@@ -438,7 +558,7 @@ static bool srxlFrameVTX(sbuf_t *dst, timeUs_t currentTimeUs)
 #define SRXL_VTX_TM_COUNT        0
 #endif
 
-#define SRXL_SCHEDULE_USER_COUNT (SRXL_FP_MAH_COUNT + SRXL_SCHEDULE_CMS_COUNT + SRXL_VTX_TM_COUNT)
+#define SRXL_SCHEDULE_USER_COUNT (SRXL_FP_MAH_COUNT + SRXL_SCHEDULE_CMS_COUNT + SRXL_VTX_TM_COUNT + SRXL_GPS_LOC_COUNT + SRXL_GPS_STAT_COUNT)
 #define SRXL_SCHEDULE_COUNT_MAX  (SRXL_SCHEDULE_MANDATORY_COUNT + 1)
 #define SRXL_TOTAL_COUNT         (SRXL_SCHEDULE_MANDATORY_COUNT + SRXL_SCHEDULE_USER_COUNT)
 
@@ -449,6 +569,10 @@ const srxlScheduleFnPtr srxlScheduleFuncs[SRXL_TOTAL_COUNT] = {
     srxlFrameQos,
     srxlFrameRpm,
     srxlFrameFlightPackCurrent,
+#if defined(USE_GPS)    
+    srxlFrameGpsLoc,
+    srxlFrameGpsStat,
+#endif
 #if defined(USE_SPEKTRUM_VTX_TELEMETRY) && defined(USE_SPEKTRUM_VTX_CONTROL) && defined(USE_VTX_COMMON)
     srxlFrameVTX,
 #endif
