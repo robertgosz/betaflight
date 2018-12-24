@@ -208,8 +208,9 @@ bool srxlFrameGpsLoc(sbuf_t *dst, timeUs_t currentTimeUs)
 {
     gpsCoordinateDDDMMmmmm_t coordinate;
     
-    uint32_t latitudeBcd, longitudeBcd;
-    uint8_t isNorth, isEast;
+    uint32_t latitudeBcd, longitudeBcd, altitudeLo;
+    uint16_t altitudeLoBcd;
+    uint8_t isNorth, isEast, x;
     uint8_t gpsFlags = 0x00;
     
     UNUSED(currentTimeUs);
