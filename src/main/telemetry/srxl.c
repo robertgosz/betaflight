@@ -225,6 +225,15 @@ bool srxlFrameGpsLoc(sbuf_t *dst, timeUs_t currentTimeUs)
     isEast = gpsSol.llh.lon < 0 ? 0 : 1;
     longitudeBcd = (dec2bcd_r(coordinate.dddmm) << 16) | dec2bcd_r(coordinate.mmmm);
     
+    // altitude
+    altitudeLo = gpsSol.llh.alt / 10;
+    if(altitudeLo > 999999) altitudeLo = 999999;
+    x = altitudeLo / 100000;
+    if(x > 0) altitudeLo -= (x * 100000);
+    x = altitudeLo / 10000;
+    if(x > 0) altitudeLo -= (x * 10000);
+    altitudeLoBcd = dec2bcd_r(altitudeLo);
+    
     // flags
     if(isNorth) gpsFlags = gpsFlags | 0x01;
     if(isEast)  gpsFlags = gpsFlags | 0x02;
@@ -236,7 +245,7 @@ bool srxlFrameGpsLoc(sbuf_t *dst, timeUs_t currentTimeUs)
     // SRXL frame
     sbufWriteU8(dst, SRXL_FRAMETYPE_GPS_LOC);
     sbufWriteU8(dst, SRXL_FRAMETYPE_SID);
-    sbufWriteU16(dst, 0x9990);                    
+    sbufWriteU16(dst, altitudeLoBcd);                    
     sbufWriteU32(dst, latitudeBcd);
     sbufWriteU32(dst, longitudeBcd);
     sbufWriteU16(dst, 0x0450);
