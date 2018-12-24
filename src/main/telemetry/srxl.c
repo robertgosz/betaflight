@@ -209,8 +209,8 @@ bool srxlFrameGpsLoc(sbuf_t *dst, timeUs_t currentTimeUs)
     gpsCoordinateDDDMMmmmm_t coordinate;
     
     uint32_t latitudeBcd, longitudeBcd, altitudeLo;
-    uint16_t altitudeLoBcd;
-    uint8_t isNorth, isEast, x;
+    uint16_t altitudeLoBcd, groundCourseBcd, hdop;
+    uint8_t isNorth, isEast, x, hdopBcd;
     uint8_t gpsFlags = 0x00;
     
     UNUSED(currentTimeUs);
@@ -235,6 +235,14 @@ bool srxlFrameGpsLoc(sbuf_t *dst, timeUs_t currentTimeUs)
     if(x > 0) altitudeLo -= (x * 10000);
     altitudeLoBcd = dec2bcd_r(altitudeLo);
     
+    // Ground course
+    groundCourseBcd = dec2bcd_r(gpsSol.groundCourse);
+    
+    // HDOP
+    hdop = gpsSol.hdop / 10;
+    if(hdop > 99) hdop = 99;
+    hdopBcd = (dec2bcd_r(hdop));
+    
     // flags
     if(isNorth) gpsFlags = gpsFlags | 0x01;
     if(isEast)  gpsFlags = gpsFlags | 0x02;
@@ -246,13 +254,12 @@ bool srxlFrameGpsLoc(sbuf_t *dst, timeUs_t currentTimeUs)
     // SRXL frame
     sbufWriteU8(dst, SRXL_FRAMETYPE_GPS_LOC);
     sbufWriteU8(dst, SRXL_FRAMETYPE_SID);
-    sbufWriteU16(dst, altitudeLoBcd);                    
+    sbufWriteU16(dst, altitudeLoBcd);
     sbufWriteU32(dst, latitudeBcd);
     sbufWriteU32(dst, longitudeBcd);
-    sbufWriteU16(dst, 0x0450);
-    sbufWriteU8(dst, 0xFF);
+    sbufWriteU16(dst, groundCourseBcd);
+    sbufWriteU8(dst, hdopBcd);
     sbufWriteU8(dst, gpsFlags);
-    
     return true;
 }
 
@@ -264,8 +271,7 @@ typedef struct
    UINT16  speed;                           // BCD, knots, format 3.1 
    UINT32  UTC;                             // BCD, format HH:MM:SS.S, format 6.1 
    UINT8   numSats;                         // BCD, 0-99 
-   UINT8   altitudeHigh;                    // BCD, meters, format 2.0 (
-High bits alt) 
+   UINT8   altitudeHigh;                    // BCD, meters, format 2.0 (High bits alt) 
 } STRU_TELE_GPS_STAT; 
 */
 
@@ -310,7 +316,7 @@ bool srxlFrameFlightPackCurrent(sbuf_t *dst, timeUs_t currentTimeUs)
     timeUs_t keepAlive = currentTimeUs - lastTimeSentFPmAh;
 
     if ( (amps != sentAmps) || (mah != sentMah) ||
-         keepAlive > FP_MAH_KEEPALIVE_TIME_OUT ) {
+        keepAlive > FP_MAH_KEEPALIVE_TIME_OUT ) {
         sbufWriteU8(dst, SRXL_FRAMETYPE_TELE_FP_MAH);
         sbufWriteU8(dst, SRXL_FRAMETYPE_SID);
         sbufWriteU16(dst, amps);
