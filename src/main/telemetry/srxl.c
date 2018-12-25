@@ -163,6 +163,7 @@ bool srxlFrameRpm(sbuf_t *dst, timeUs_t currentTimeUs)
 }
 
 #if defined(USE_GPS) 
+
 // From Frsky implementation
 static void GPStoDDDMM_MMMM(int32_t mwiigps, gpsCoordinateDDDMMmmmm_t *result)
 {
@@ -179,7 +180,6 @@ uint32_t dec2bcd_r(uint16_t dec)
 {
     return (dec) ? ((dec2bcd_r( dec / 10 ) << 4) + (dec % 10)) : 0;
 }
-#endif
 
 /*
 typedef struct
@@ -220,13 +220,13 @@ bool srxlFrameGpsLoc(sbuf_t *dst, timeUs_t currentTimeUs)
     latitudeBcd = (dec2bcd_r(coordinate.dddmm) << 16) | dec2bcd_r(coordinate.mmmm);
 
     // longitude
-    if ((gpsSol.llh.lon / GPS_DEGREES_DIVIDER) > 99) gpsFlags = gpsFlags | 0x04;  
+    if ((gpsSol.llh.lon / GPS_DEGREES_DIVIDER) > 99) gpsFlags = gpsFlags | 0x04;
     GPStoDDDMM_MMMM(gpsSol.llh.lon, &coordinate);
     isEast = gpsSol.llh.lon < 0 ? 0 : 1;
     longitudeBcd = (dec2bcd_r(coordinate.dddmm) << 16) | dec2bcd_r(coordinate.mmmm);
 
     // altitude
-    altitudeLo = gpsSol.llh.alt / 10;
+    altitudeLo = ABS(gpsSol.llh.alt) / 10;
     if (altitudeLo > 999999) altitudeLo = 999999;
     x = altitudeLo / 100000;
     if (x > 0) altitudeLo-=(x * 100000);
@@ -246,9 +246,10 @@ bool srxlFrameGpsLoc(sbuf_t *dst, timeUs_t currentTimeUs)
     if (isNorth) gpsFlags = gpsFlags | 0x01;
     if (isEast)  gpsFlags = gpsFlags | 0x02;
     if (STATE(GPS_FIX)) gpsFlags = gpsFlags | 0x28;
+    if (gpsSol.llh.alt < 0) gpsFlags = gpsFlags | 0x80;
 
     // data received bit
-    gpsFlags = gpsFlags | 0x10; 
+    gpsFlags = gpsFlags | 0x10;
 
     // SRXL frame
     sbufWriteU8(dst, SRXL_FRAMETYPE_GPS_LOC);
@@ -310,7 +311,6 @@ bool srxlFrameGpsStat(sbuf_t *dst, timeUs_t currentTimeUs)
         timeProvided = true;
     }
     #endif
-
     timeBcd = (timeProvided) ? timeBcd : 0xFFFFFFFF;
 
     // SRXL frame
@@ -324,6 +324,8 @@ bool srxlFrameGpsStat(sbuf_t *dst, timeUs_t currentTimeUs)
 
     return true;
 }
+
+#endif
 
 /*
 typedef struct
