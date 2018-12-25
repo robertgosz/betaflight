@@ -207,50 +207,49 @@ typedef struct
 bool srxlFrameGpsLoc(sbuf_t *dst, timeUs_t currentTimeUs)
 {
     gpsCoordinateDDDMMmmmm_t coordinate;
-    
     uint32_t latitudeBcd, longitudeBcd, altitudeLo;
     uint16_t altitudeLoBcd, groundCourseBcd, hdop;
     uint8_t isNorth, isEast, x, hdopBcd;
     uint8_t gpsFlags = 0x00;
-    
+
     UNUSED(currentTimeUs);
-    
+
     // lattitude
     GPStoDDDMM_MMMM(gpsSol.llh.lat, &coordinate);
     isNorth = gpsSol.llh.lat < 0 ? 0 : 1;
     latitudeBcd = (dec2bcd_r(coordinate.dddmm) << 16) | dec2bcd_r(coordinate.mmmm);
-    
+
     // longitude
-    if((gpsSol.llh.lon / GPS_DEGREES_DIVIDER) > 99) gpsFlags = gpsFlags | 0x04;  
+    if ((gpsSol.llh.lon / GPS_DEGREES_DIVIDER) > 99) gpsFlags = gpsFlags | 0x04;  
     GPStoDDDMM_MMMM(gpsSol.llh.lon, &coordinate);
     isEast = gpsSol.llh.lon < 0 ? 0 : 1;
     longitudeBcd = (dec2bcd_r(coordinate.dddmm) << 16) | dec2bcd_r(coordinate.mmmm);
-    
+
     // altitude
     altitudeLo = gpsSol.llh.alt / 10;
-    if(altitudeLo > 999999) altitudeLo = 999999;
+    if (altitudeLo > 999999) altitudeLo = 999999;
     x = altitudeLo / 100000;
-    if(x > 0) altitudeLo -= (x * 100000);
+    if (x > 0) altitudeLo-=(x * 100000);
     x = altitudeLo / 10000;
-    if(x > 0) altitudeLo -= (x * 10000);
+    if (x > 0) altitudeLo-=(x * 10000);
     altitudeLoBcd = dec2bcd_r(altitudeLo);
-    
+
     // Ground course
     groundCourseBcd = dec2bcd_r(gpsSol.groundCourse);
-    
+
     // HDOP
     hdop = gpsSol.hdop / 10;
-    if(hdop > 99) hdop = 99;
+    if (hdop > 99) hdop = 99;
     hdopBcd = (dec2bcd_r(hdop));
-    
+
     // flags
-    if(isNorth) gpsFlags = gpsFlags | 0x01;
-    if(isEast)  gpsFlags = gpsFlags | 0x02;
-    if(STATE(GPS_FIX)) gpsFlags = gpsFlags | 0x28;
-    
+    if (isNorth) gpsFlags = gpsFlags | 0x01;
+    if (isEast)  gpsFlags = gpsFlags | 0x02;
+    if (STATE(GPS_FIX)) gpsFlags = gpsFlags | 0x28;
+
     // data received bit
     gpsFlags = gpsFlags | 0x10; 
-    
+
     // SRXL frame
     sbufWriteU8(dst, SRXL_FRAMETYPE_GPS_LOC);
     sbufWriteU8(dst, SRXL_FRAMETYPE_SID);
@@ -260,7 +259,7 @@ bool srxlFrameGpsLoc(sbuf_t *dst, timeUs_t currentTimeUs)
     sbufWriteU16(dst, groundCourseBcd);
     sbufWriteU8(dst, hdopBcd);
     sbufWriteU8(dst, gpsFlags);
-    
+
     return true;
 }
 
@@ -280,20 +279,26 @@ typedef struct
 
 bool srxlFrameGpsStat(sbuf_t *dst, timeUs_t currentTimeUs)
 {
-    uint8_t numSatBcd, altitudeHighBcd;
     uint32_t timeBcd;
+    uint16_t speedKnotsBcd, speedTmp;
+    uint8_t numSatBcd, altitudeHighBcd;
     dateTime_t dt;
     bool timeProvided = false;
-    
+
     UNUSED(currentTimeUs);
 
-    // BCD values
+    // Number of sats and altitude (high bits)
     numSatBcd = (gpsSol.numSat > 99) ?  dec2bcd_r(99) : dec2bcd_r(gpsSol.numSat);
     altitudeHighBcd = dec2bcd_r(gpsSol.llh.alt / 100000);
 
+    // Speed
+    speedTmp = gpsSol.groundSpeed * 1944 / 10000;
+    if (speedTmp > 9999) speedTmp = 9999;
+    speedKnotsBcd = dec2bcd_r(speedTmp);
+
     // RTC
     #ifdef USE_RTC_TIME
-    if(rtcHasTime()) {
+    if (rtcHasTime()) {
         rtcGetDateTime(&dt);
         timeBcd = dec2bcd_r(dt.hours);
         timeBcd = timeBcd << 8;
@@ -305,18 +310,18 @@ bool srxlFrameGpsStat(sbuf_t *dst, timeUs_t currentTimeUs)
         timeProvided = true;
     }
     #endif
-     
+
     timeBcd = (timeProvided) ? timeBcd : 0xFFFFFFFF;
 
     // SRXL frame
     sbufWriteU8(dst, SRXL_FRAMETYPE_GPS_STAT);
     sbufWriteU8(dst, SRXL_FRAMETYPE_SID);
-    sbufWriteU16(dst, 0xFFFF);
+    sbufWriteU16(dst, speedKnotsBcd);
     sbufWriteU32(dst, timeBcd);
     sbufWriteU8(dst, numSatBcd);
     sbufWriteU8(dst, altitudeHighBcd);
     sbufFill(dst, 0xFF, STRU_TELE_GPS_STAT_EMPTY_FIELDS_COUNT);
-    
+
     return true;
 }
 
