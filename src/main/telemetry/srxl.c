@@ -260,6 +260,7 @@ bool srxlFrameGpsLoc(sbuf_t *dst, timeUs_t currentTimeUs)
     sbufWriteU16(dst, groundCourseBcd);
     sbufWriteU8(dst, hdopBcd);
     sbufWriteU8(dst, gpsFlags);
+    
     return true;
 }
 
@@ -275,16 +276,47 @@ typedef struct
 } STRU_TELE_GPS_STAT; 
 */
 
+#define STRU_TELE_GPS_STAT_EMPTY_FIELDS_COUNT 6
+
 bool srxlFrameGpsStat(sbuf_t *dst, timeUs_t currentTimeUs)
 {
+    uint8_t numSatBcd, altitudeHighBcd;
+    uint32_t timeBcd;
+    dateTime_t dt;
+    bool timeProvided = false;
+    
     UNUSED(currentTimeUs);
 
+    // BCD values
+    numSatBcd = (gpsSol.numSat > 99) ?  dec2bcd_r(99) : dec2bcd_r(gpsSol.numSat);
+    altitudeHighBcd = dec2bcd_r(gpsSol.llh.alt / 100000);
+
+    // RTC
+    #ifdef USE_RTC_TIME
+    if(rtcHasTime()) {
+        rtcGetDateTime(&dt);
+        timeBcd = dec2bcd_r(dt.hours);
+        timeBcd = timeBcd << 8;
+        timeBcd = timeBcd | dec2bcd_r(dt.minutes);
+        timeBcd = timeBcd << 8;
+        timeBcd = timeBcd | dec2bcd_r(dt.seconds);
+        timeBcd = timeBcd << 4;
+        timeBcd = timeBcd | dec2bcd_r(dt.millis / 100);
+        timeProvided = true;
+    }
+    #endif
+     
+    timeBcd = (timeProvided) ? timeBcd : 0xFFFFFFFF;
+
+    // SRXL frame
     sbufWriteU8(dst, SRXL_FRAMETYPE_GPS_STAT);
     sbufWriteU8(dst, SRXL_FRAMETYPE_SID);
-    sbufWriteU16(dst, 0xFFFF);                    
-    sbufWriteU32(dst, 0xFFFFFFFF);
-    sbufWriteU8(dst, 0x08);
-    sbufWriteU8(dst, 0x99);
+    sbufWriteU16(dst, 0xFFFF);
+    sbufWriteU32(dst, timeBcd);
+    sbufWriteU8(dst, numSatBcd);
+    sbufWriteU8(dst, altitudeHighBcd);
+    sbufFill(dst, 0xFF, STRU_TELE_GPS_STAT_EMPTY_FIELDS_COUNT);
+    
     return true;
 }
 
@@ -585,9 +617,9 @@ const srxlScheduleFnPtr srxlScheduleFuncs[SRXL_TOTAL_COUNT] = {
     srxlFrameQos,
     srxlFrameRpm,
     srxlFrameFlightPackCurrent,
-#if defined(USE_GPS)    
-    srxlFrameGpsLoc,
+#if defined(USE_GPS)
     srxlFrameGpsStat,
+    srxlFrameGpsLoc,
 #endif
 #if defined(USE_SPEKTRUM_VTX_TELEMETRY) && defined(USE_SPEKTRUM_VTX_CONTROL) && defined(USE_VTX_COMMON)
     srxlFrameVTX,
