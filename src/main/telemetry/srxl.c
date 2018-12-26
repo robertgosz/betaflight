@@ -209,20 +209,17 @@ bool srxlFrameGpsLoc(sbuf_t *dst, timeUs_t currentTimeUs)
     gpsCoordinateDDDMMmmmm_t coordinate;
     uint32_t latitudeBcd, longitudeBcd, altitudeLo;
     uint16_t altitudeLoBcd, groundCourseBcd, hdop;
-    uint8_t isNorth, isEast, x, hdopBcd;
+    uint8_t x, hdopBcd;
     uint8_t gpsFlags = 0x00;
 
     UNUSED(currentTimeUs);
 
     // lattitude
     GPStoDDDMM_MMMM(gpsSol.llh.lat, &coordinate);
-    isNorth = gpsSol.llh.lat < 0 ? 0 : 1;
-    latitudeBcd = (dec2bcd_r(coordinate.dddmm) << 16) | dec2bcd_r(coordinate.mmmm);
+    latitudeBcd  = (dec2bcd_r(coordinate.dddmm) << 16) | dec2bcd_r(coordinate.mmmm);
 
     // longitude
-    if ((gpsSol.llh.lon / GPS_DEGREES_DIVIDER) > 99) gpsFlags = gpsFlags | 0x04;
     GPStoDDDMM_MMMM(gpsSol.llh.lon, &coordinate);
-    isEast = gpsSol.llh.lon < 0 ? 0 : 1;
     longitudeBcd = (dec2bcd_r(coordinate.dddmm) << 16) | dec2bcd_r(coordinate.mmmm);
 
     // altitude
@@ -243,13 +240,13 @@ bool srxlFrameGpsLoc(sbuf_t *dst, timeUs_t currentTimeUs)
     hdopBcd = (dec2bcd_r(hdop));
 
     // flags
-    if (isNorth) gpsFlags = gpsFlags | 0x01;
-    if (isEast)  gpsFlags = gpsFlags | 0x02;
-    if (STATE(GPS_FIX)) gpsFlags = gpsFlags | 0x28;
-    if (gpsSol.llh.alt < 0) gpsFlags = gpsFlags | 0x80;
-
-    // data received bit
-    gpsFlags = gpsFlags | 0x10;
+    if (gpsSol.llh.lat > 0) gpsFlags = gpsFlags | 0x01;   // North
+    if (gpsSol.llh.lon > 0) gpsFlags = gpsFlags | 0x02;   // East
+    if (STATE(GPS_FIX)) gpsFlags = gpsFlags     | 0x28;   // GPS Fix
+    if (gpsSol.llh.alt < 0) gpsFlags = gpsFlags | 0x80;   // Negative altitude
+    if ((gpsSol.llh.lon / GPS_DEGREES_DIVIDER) > 99) 
+        gpsFlags = gpsFlags                     | 0x04;   // Longitude > 99
+    gpsFlags = gpsFlags                         | 0x10;   // Data received bit
 
     // SRXL frame
     sbufWriteU8(dst, SRXL_FRAMETYPE_GPS_LOC);
@@ -355,7 +352,7 @@ bool srxlFrameFlightPackCurrent(sbuf_t *dst, timeUs_t currentTimeUs)
     timeUs_t keepAlive = currentTimeUs - lastTimeSentFPmAh;
 
     if ( (amps != sentAmps) || (mah != sentMah) ||
-        keepAlive > FP_MAH_KEEPALIVE_TIME_OUT ) {
+         keepAlive > FP_MAH_KEEPALIVE_TIME_OUT ) {
         sbufWriteU8(dst, SRXL_FRAMETYPE_TELE_FP_MAH);
         sbufWriteU8(dst, SRXL_FRAMETYPE_SID);
         sbufWriteU16(dst, amps);
