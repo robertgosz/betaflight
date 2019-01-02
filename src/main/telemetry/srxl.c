@@ -264,12 +264,12 @@ bool srxlFrameGpsLoc(sbuf_t *dst, timeUs_t currentTimeUs)
 /*
 typedef struct 
 { 
-   UINT8   identifier;                      // Source device = 0x17 
-   UINT8   sID;                             // Secondary ID 
-   UINT16  speed;                           // BCD, knots, format 3.1 
-   UINT32  UTC;                             // BCD, format HH:MM:SS.S, format 6.1 
-   UINT8   numSats;                         // BCD, 0-99 
-   UINT8   altitudeHigh;                    // BCD, meters, format 2.0 (High bits alt) 
+   UINT8   identifier;                      // Source device = 0x17
+   UINT8   sID;                             // Secondary ID
+   UINT16  speed;                           // BCD, knots, format 3.1
+   UINT32  UTC;                             // BCD, format HH:MM:SS.S, format 6.1
+   UINT8   numSats;                         // BCD, 0-99
+   UINT8   altitudeHigh;                    // BCD, meters, format 2.0 (High bits alt)
 } STRU_TELE_GPS_STAT; 
 */
 
@@ -290,7 +290,7 @@ bool srxlFrameGpsStat(sbuf_t *dst, timeUs_t currentTimeUs)
     altitudeHighBcd = dec2bcd_r(gpsSol.llh.alt / 100000);
 
     // Speed
-    speedTmp = gpsSol.groundSpeed * 1944 / 10000;
+    speedTmp = gpsSol.groundSpeed * 1944 / 1000;
     if (speedTmp > 9999) speedTmp = 9999;
     speedKnotsBcd = dec2bcd_r(speedTmp);
 
