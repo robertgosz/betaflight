@@ -176,9 +176,18 @@ static void GPStoDDDMM_MMMM(int32_t mwiigps, gpsCoordinateDDDMMmmmm_t *result)
     result->mmmm  = (absgps - min * GPS_DEGREES_DIVIDER) / 1000;
 }
 
-uint32_t dec2bcd_r(uint16_t dec)
+// BCD conversion
+static uint32_t dec2bcd(uint16_t dec)
 {
-    return (dec) ? ((dec2bcd_r( dec / 10 ) << 4) + (dec % 10)) : 0;
+    uint32_t result = 0;
+    uint8_t counter = 0;
+
+    while (dec) {
+        result |= (dec % 10) << counter * 4;
+        counter++;
+        dec /= 10;
+    }
+    return result;
 }
 
 /*
@@ -193,60 +202,55 @@ typedef struct
     UINT8    HDOP;          // BCD, format 1.1
     UINT8    GPSflags;      // see definitions below
 } STRU_TELE_GPS_LOC;
-
-// GPS flags definitions:
-#define GPS_INFO_FLAGS_IS_NORTH_BIT                 (0)
-#define GPS_INFO_FLAGS_IS_EAST_BIT                  (1)
-#define GPS_INFO_FLAGS_LONGITUDE_GREATER_99_BIT     (2)
-#define GPS_INFO_FLAGS_GPS_FIX_VALID_BIT            (3)
-#define GPS_INFO_FLAGS_GPS_DATA_RECEIVED_BIT        (4)
-#define GPS_INFO_FLAGS_3D_FIX_BIT                   (5)
-#define GPS_INFO_FLAGS_NEGATIVE_ALT_BIT             (7)
 */
+
+// GPS flags definitions
+#define GPS_FLAGS_IS_NORTH_BIT              0x01
+#define GPS_FLAGS_IS_EAST_BIT               0x02
+#define GPS_FLAGS_LONGITUDE_GREATER_99_BIT  0x04
+#define GPS_FLAGS_GPS_FIX_VALID_BIT         0x08
+#define GPS_FLAGS_GPS_DATA_RECEIVED_BIT     0x10
+#define GPS_FLAGS_3D_FIX_BIT                0x20
+#define GPS_FLAGS_NEGATIVE_ALT_BIT          0x80
 
 bool srxlFrameGpsLoc(sbuf_t *dst, timeUs_t currentTimeUs)
 {
+    UNUSED(currentTimeUs);
     gpsCoordinateDDDMMmmmm_t coordinate;
     uint32_t latitudeBcd, longitudeBcd, altitudeLo;
     uint16_t altitudeLoBcd, groundCourseBcd, hdop;
-    uint8_t x, hdopBcd;
-    uint8_t gpsFlags = 0x00;
+    uint8_t hdopBcd, gpsFlags;
 
-    UNUSED(currentTimeUs);
+    if (!feature(FEATURE_GPS) || !STATE(GPS_FIX) || gpsSol.numSat < 6) {
+        return false;
+    }
 
     // lattitude
     GPStoDDDMM_MMMM(gpsSol.llh.lat, &coordinate);
-    latitudeBcd  = (dec2bcd_r(coordinate.dddmm) << 16) | dec2bcd_r(coordinate.mmmm);
+    latitudeBcd  = (dec2bcd(coordinate.dddmm) << 16) | dec2bcd(coordinate.mmmm);
 
     // longitude
     GPStoDDDMM_MMMM(gpsSol.llh.lon, &coordinate);
-    longitudeBcd = (dec2bcd_r(coordinate.dddmm) << 16) | dec2bcd_r(coordinate.mmmm);
+    longitudeBcd = (dec2bcd(coordinate.dddmm) << 16) | dec2bcd(coordinate.mmmm);
 
-    // altitude
+    // altitude (low order)
     altitudeLo = ABS(gpsSol.llh.alt) / 10;
-    if (altitudeLo > 999999) altitudeLo = 999999;
-    x = altitudeLo / 100000;
-    if (x > 0) altitudeLo-=(x * 100000);
-    x = altitudeLo / 10000;
-    if (x > 0) altitudeLo-=(x * 10000);
-    altitudeLoBcd = dec2bcd_r(altitudeLo);
+    altitudeLoBcd = dec2bcd(altitudeLo % 100000);
 
     // Ground course
-    groundCourseBcd = dec2bcd_r(gpsSol.groundCourse);
+    groundCourseBcd = dec2bcd(gpsSol.groundCourse);
 
     // HDOP
     hdop = gpsSol.hdop / 10;
-    if (hdop > 99) hdop = 99;
-    hdopBcd = (dec2bcd_r(hdop));
+    hdop = (hdop > 99) ? 99 : hdop;
+    hdopBcd = dec2bcd(hdop);
 
     // flags
-    if (gpsSol.llh.lat > 0) gpsFlags = gpsFlags | 0x01;   // North
-    if (gpsSol.llh.lon > 0) gpsFlags = gpsFlags | 0x02;   // East
-    if (STATE(GPS_FIX)) gpsFlags = gpsFlags     | 0x28;   // GPS Fix
-    if (gpsSol.llh.alt < 0) gpsFlags = gpsFlags | 0x80;   // Negative altitude
-    if ((gpsSol.llh.lon / GPS_DEGREES_DIVIDER) > 99) 
-        gpsFlags = gpsFlags                     | 0x04;   // Longitude > 99
-    gpsFlags = gpsFlags                         | 0x10;   // Data received bit
+    gpsFlags = GPS_FLAGS_GPS_DATA_RECEIVED_BIT | GPS_FLAGS_GPS_FIX_VALID_BIT | GPS_FLAGS_3D_FIX_BIT;
+    gpsFlags |= (gpsSol.llh.lat > 0) ? GPS_FLAGS_IS_NORTH_BIT : 0;
+    gpsFlags |= (gpsSol.llh.lon > 0) ? GPS_FLAGS_IS_EAST_BIT : 0;
+    gpsFlags |= (gpsSol.llh.alt < 0) ? GPS_FLAGS_NEGATIVE_ALT_BIT : 0;
+    gpsFlags |= (gpsSol.llh.lon / GPS_DEGREES_DIVIDER > 99) ? GPS_FLAGS_LONGITUDE_GREATER_99_BIT : 0;
 
     // SRXL frame
     sbufWriteU8(dst, SRXL_FRAMETYPE_GPS_LOC);
@@ -262,52 +266,54 @@ bool srxlFrameGpsLoc(sbuf_t *dst, timeUs_t currentTimeUs)
 }
 
 /*
-typedef struct 
-{ 
+typedef struct
+{
    UINT8   identifier;                      // Source device = 0x17
    UINT8   sID;                             // Secondary ID
    UINT16  speed;                           // BCD, knots, format 3.1
    UINT32  UTC;                             // BCD, format HH:MM:SS.S, format 6.1
    UINT8   numSats;                         // BCD, 0-99
    UINT8   altitudeHigh;                    // BCD, meters, format 2.0 (High bits alt)
-} STRU_TELE_GPS_STAT; 
+} STRU_TELE_GPS_STAT;
 */
 
 #define STRU_TELE_GPS_STAT_EMPTY_FIELDS_COUNT 6
 
 bool srxlFrameGpsStat(sbuf_t *dst, timeUs_t currentTimeUs)
 {
+    UNUSED(currentTimeUs);
     uint32_t timeBcd;
     uint16_t speedKnotsBcd, speedTmp;
     uint8_t numSatBcd, altitudeHighBcd;
     dateTime_t dt;
     bool timeProvided = false;
 
-    UNUSED(currentTimeUs);
+    if (!feature(FEATURE_GPS) || !STATE(GPS_FIX) || gpsSol.numSat < 6) {
+        return false;
+    }
 
     // Number of sats and altitude (high bits)
-    numSatBcd = (gpsSol.numSat > 99) ?  dec2bcd_r(99) : dec2bcd_r(gpsSol.numSat);
-    altitudeHighBcd = dec2bcd_r(gpsSol.llh.alt / 100000);
+    numSatBcd = (gpsSol.numSat > 99) ? dec2bcd(99) : dec2bcd(gpsSol.numSat);
+    altitudeHighBcd = dec2bcd(gpsSol.llh.alt / 100000);
 
-    // Speed
+    // Speed (knots)
     speedTmp = gpsSol.groundSpeed * 1944 / 1000;
-    if (speedTmp > 9999) speedTmp = 9999;
-    speedKnotsBcd = dec2bcd_r(speedTmp);
+    speedKnotsBcd = (speedTmp > 9999) ? dec2bcd(9999) : dec2bcd(speedTmp);
 
+#ifdef USE_RTC_TIME
     // RTC
-    #ifdef USE_RTC_TIME
     if (rtcHasTime()) {
         rtcGetDateTime(&dt);
-        timeBcd = dec2bcd_r(dt.hours);
+        timeBcd = dec2bcd(dt.hours);
         timeBcd = timeBcd << 8;
-        timeBcd = timeBcd | dec2bcd_r(dt.minutes);
+        timeBcd = timeBcd | dec2bcd(dt.minutes);
         timeBcd = timeBcd << 8;
-        timeBcd = timeBcd | dec2bcd_r(dt.seconds);
+        timeBcd = timeBcd | dec2bcd(dt.seconds);
         timeBcd = timeBcd << 4;
-        timeBcd = timeBcd | dec2bcd_r(dt.millis / 100);
+        timeBcd = timeBcd | dec2bcd(dt.millis / 100);
         timeProvided = true;
     }
-    #endif
+#endif
     timeBcd = (timeProvided) ? timeBcd : 0xFFFFFFFF;
 
     // SRXL frame
