@@ -169,11 +169,11 @@ static void GPStoDDDMM_MMMM(int32_t mwiigps, gpsCoordinateDDDMMmmmm_t *result)
 {
     int32_t absgps, deg, min;
     absgps = ABS(mwiigps);
-    deg    = absgps / GPS_DEGREES_DIVIDER;
-    absgps = (absgps - deg * GPS_DEGREES_DIVIDER) * 60;        // absgps = Minutes left * 10^7
-    min    = absgps / GPS_DEGREES_DIVIDER;                     // minutes left
+    deg = absgps / GPS_DEGREES_DIVIDER;
+    absgps = (absgps - deg * GPS_DEGREES_DIVIDER) * 60;     // absgps = Minutes left * 10^7
+    min = absgps / GPS_DEGREES_DIVIDER;                     // minutes left
     result->dddmm = deg * 100 + min;
-    result->mmmm  = (absgps - min * GPS_DEGREES_DIVIDER) / 1000;
+    result->mmmm = (absgps - min * GPS_DEGREES_DIVIDER) / 1000;
 }
 
 // BCD conversion
@@ -278,6 +278,7 @@ typedef struct
 */
 
 #define STRU_TELE_GPS_STAT_EMPTY_FIELDS_COUNT 6
+#define SPEKTRUM_TIME_UNKNOWN 0xFFFFFFFF
 
 bool srxlFrameGpsStat(sbuf_t *dst, timeUs_t currentTimeUs)
 {
@@ -314,7 +315,7 @@ bool srxlFrameGpsStat(sbuf_t *dst, timeUs_t currentTimeUs)
         timeProvided = true;
     }
 #endif
-    timeBcd = (timeProvided) ? timeBcd : 0xFFFFFFFF;
+    timeBcd = (timeProvided) ? timeBcd : SPEKTRUM_TIME_UNKNOWN;
 
     // SRXL frame
     sbufWriteU8(dst, SRXL_FRAMETYPE_GPS_STAT);
