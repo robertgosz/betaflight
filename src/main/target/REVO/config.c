@@ -18,18 +18,24 @@
  * If not, see <http://www.gnu.org/licenses/>.
  */
 
-/*
- * Author: Chris Hockuba (https://github.com/conkerkh)
- */
+#include <stdbool.h>
+#include <stdint.h>
 
-#pragma once
+#include "platform.h"
+#include "drivers/serial.h"
+#include "pg/rx.h"
+#include "pg/piniobox.h"
+#include "rx/rx.h"
+#include "telemetry/telemetry.h"
+#include "fc/config.h"
 
-#define MSC_MAGIC 0xDDDD1010
+#ifdef USE_TARGET_CONFIG
+#include "pg/pg.h"
 
-void mscInit(void);
-bool mscCheckBoot(void);
-uint8_t mscStart(void);
-bool mscCheckButton(void);
-void mscWaitForButton(void);
-void systemResetToMsc(void);
-void systemResetFromMsc(void);
+void targetConfiguration(void)
+{
+    rxConfigMutable()->halfDuplex = true;
+    pinioBoxConfigMutable()->permanentId[0] = 40;
+    pinioBoxConfigMutable()->permanentId[1] = 41;
+}
+#endif
