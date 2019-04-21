@@ -298,7 +298,7 @@ bool srxlFrameGpsStat(sbuf_t *dst, timeUs_t currentTimeUs)
     altitudeHighBcd = dec2bcd(gpsSol.llh.alt / 100000);
 
     // Speed (knots)
-    speedTmp = gpsSol.groundSpeed * 1944 / 1000;
+    speedTmp = gpsSol.groundSpeed * 1944 / 10000;
     speedKnotsBcd = (speedTmp > 9999) ? dec2bcd(9999) : dec2bcd(speedTmp);
 
 #ifdef USE_RTC_TIME
